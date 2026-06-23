@@ -1,7 +1,7 @@
 // ÇeviriCanlı - derlemesiz (build'siz) sürüm.
 // @google/genai kütüphanesi doğrudan CDN'den (esm.sh) yükleniyor; bu sayede
 // hiçbir derleme adımı gerekmez, dosyalar olduğu gibi GitHub Pages'e yüklenir.
-import { GoogleGenAI, Modality } from 'https://esm.sh/@google/genai@1.52.0';
+import { GoogleGenAI, Modality } from 'https://esm.sh/@google/genai@2.9.0';
 
 // ---- Ses yardımcıları --------------------------------------------------
 function abToBase64(buf) {
