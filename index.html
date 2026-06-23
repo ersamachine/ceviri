@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ÇeviriCanlı · Türkçe ⇄ 中文</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo">🎙️</span>
+          <span>Çeviri<strong>Canlı</strong></span>
+        </div>
+        <div class="status" id="status">
+          <span class="dot" id="statusDot"></span>
+          <span id="statusText">Hazır değil</span>
+        </div>
+        <button class="icon-btn" id="settingsBtn" title="Ayarlar">⚙️</button>
+      </header>
+
+      <section class="settings" id="settingsPanel" hidden>
+        <label for="apiKey">Gemini API anahtarı</label>
+        <div class="key-row">
+          <input
+            id="apiKey"
+            type="password"
+            placeholder="API anahtarınız"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button id="saveKey" class="btn-secondary">Kaydet</button>
+        </div>
+        <p class="hint">
+          Anahtar yalnızca bu tarayıcıda (localStorage) saklanır, hiçbir yere
+          gönderilmez ve repoya yazılmaz.
+        </p>
+      </section>
+
+      <section class="lang-row">
+        <div class="lang" id="langFrom">
+          <span class="flag">🇹🇷</span>
+          <span class="name">Türkçe</span>
+        </div>
+        <button class="swap" id="swapBtn" title="Yönü değiştir">⇄</button>
+        <div class="lang" id="langTo">
+          <span class="flag">🇨🇳</span>
+          <span class="name">中文</span>
+        </div>
+      </section>
+
+      <main class="panels">
+        <div class="panel">
+          <div class="panel-head"><span id="srcLabel">Duyulan (Türkçe)</span></div>
+          <div class="bubbles" id="srcBubbles"></div>
+        </div>
+        <div class="panel accent">
+          <div class="panel-head">
+            <span id="dstLabel">Çeviri (中文)</span>
+            <span class="speaker">🔊</span>
+          </div>
+          <div class="bubbles" id="dstBubbles"></div>
+        </div>
+      </main>
+
+      <footer class="controls">
+        <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+        <button class="mic-btn" id="micBtn">
+          <span id="micIcon">⏺</span>
+          <span id="micLabel">Başlat</span>
+        </button>
+      </footer>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
