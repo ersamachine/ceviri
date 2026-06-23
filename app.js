@@ -194,6 +194,9 @@ const micLabel = $('micLabel');
 
 // ---- Durum -------------------------------------------------------------
 const KEY_STORE = 'gemini_api_key';
+// Gürültü kapısı: yalnızca konuşmayı çevir, sessizlikteki arka plan sesini değil.
+const VOICE_GATE = 0.06; // bu RMS seviyesinin üstü = konuşma sayılır
+const GATE_HANGOVER_MS = 700; // kelime sonları kesilmesin diye kısa kuyruk
 let running = false;
 let connecting = false;
 const recorder = new Recorder();
@@ -262,8 +265,12 @@ async function start() {
     // iOS: ses bağlamları ağ bağlantısından ÖNCE kurulmalı (dokunma hareketi
     // kaybolmadan resume edilsin). Mikrofon hazır olunca WS'e bağlanıyoruz.
     await player.start();
+    let lastVoiceTs = 0;
     await recorder.start((b64, rms) => {
-      translator?.sendAudio(b64);
+      const now = performance.now();
+      if (rms >= VOICE_GATE) lastVoiceTs = now;
+      // Gürültü kapısı: sadece konuşma (+ kısa kuyruk) sırasında modele gönder.
+      if (now - lastVoiceTs < GATE_HANGOVER_MS) translator?.sendAudio(b64);
       meterFill.style.width = Math.round(rms * 100) + '%';
     });
     await connectTranslator();
