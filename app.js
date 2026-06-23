@@ -104,7 +104,9 @@ class Player {
     if (this.ctx.state === 'suspended') await this.ctx.resume();
     this.outRate = this.ctx.sampleRate;
     await this.ctx.audioWorklet.addModule('./playback-worklet.js');
-    this.node = new AudioWorkletNode(this.ctx, 'playback-processor');
+    this.node = new AudioWorkletNode(this.ctx, 'playback-processor', {
+      processorOptions: { prebufferSec: 0.25 },
+    });
     this.node.connect(this.ctx.destination);
   }
   enqueue(b64) {
