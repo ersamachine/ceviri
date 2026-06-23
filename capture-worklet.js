@@ -1,30 +1,49 @@
-// Mikrofon yakalama worklet'i.
-// AudioContext 16 kHz olarak açıldığı için tarayıcı sesi zaten 16 kHz'e indirir.
-// Burada gelen Float32 örnekleri 100 ms'lik bloklar halinde PCM16 (little-endian)
-// olarak ana iş parçacığına gönderiyoruz.
+// Mikrofon yakalama + yeniden örnekleme worklet'i.
+// iPhone Safari gibi tarayıcılar AudioContext'i istenen 16 kHz'de açmaz
+// (donanım hızını, genelde 48 kHz, kullanır). Bu yüzden gelen sesi GERÇEK
+// bağlam hızından (sampleRate) hedef 16 kHz'e doğrusal interpolasyonla
+// indirip PCM16 (little-endian) olarak 100 ms'lik bloklar halinde gönderiyoruz.
 class CaptureProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
-    this._buf = [];
-    this._target = 1600; // 16000 * 0.1 = 100 ms
+    const opt = (options && options.processorOptions) || {};
+    this.targetRate = opt.targetRate || 16000;
+    // sampleRate: worklet global'i = AudioContext'in gerçek hızı.
+    this.ratio = sampleRate / this.targetRate; // çıkış başına düşen giriş örneği
+    this._acc = [];   // henüz tüketilmemiş giriş örnekleri (float)
+    this._frac = 0;   // bir sonraki okuma için kalan kesirli konum
+    this._out = [];   // 16 kHz çıkış örnekleri (float)
+    this._chunk = Math.round(this.targetRate * 0.1); // 1600 = 100 ms
   }
 
   process(inputs) {
     const input = inputs[0];
     if (input && input[0]) {
       const ch = input[0];
-      for (let i = 0; i < ch.length; i++) this._buf.push(ch[i]);
+      for (let i = 0; i < ch.length; i++) this._acc.push(ch[i]);
 
-      while (this._buf.length >= this._target) {
-        const frame = this._buf.splice(0, this._target);
+      // Yeniden örnekleme (doğrusal interpolasyon)
+      let pos = this._frac;
+      while (pos + 1 < this._acc.length) {
+        const i0 = Math.floor(pos);
+        const t = pos - i0;
+        this._out.push(this._acc[i0] * (1 - t) + this._acc[i0 + 1] * t);
+        pos += this.ratio;
+      }
+      const consumed = Math.floor(pos);
+      if (consumed > 0) this._acc = this._acc.slice(consumed);
+      this._frac = pos - consumed;
+
+      // 100 ms'lik bloklar halinde PCM16 gönder
+      while (this._out.length >= this._chunk) {
+        const frame = this._out.splice(0, this._chunk);
         const pcm = new Int16Array(frame.length);
         for (let i = 0; i < frame.length; i++) {
-          let s = frame[i];
-          if (s > 1) s = 1;
-          else if (s < -1) s = -1;
-          pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+          let v = frame[i];
+          if (v > 1) v = 1;
+          else if (v < -1) v = -1;
+          pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
         }
-        // Transferable: kopyasız gönderim
         this.port.postMessage(pcm.buffer, [pcm.buffer]);
       }
     }

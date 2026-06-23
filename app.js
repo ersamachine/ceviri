@@ -37,6 +37,23 @@ function rmsFromInt16(buf) {
   return Math.min(1, Math.sqrt(sum / view.length) * 3);
 }
 
+// inRate -> outRate doğrusal yeniden örnekleme (çıkış sesi için).
+function resampleLinear(input, inRate, outRate) {
+  if (inRate === outRate || input.length === 0) return input;
+  const ratio = inRate / outRate;
+  const outLen = Math.max(1, Math.floor(input.length / ratio));
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const pos = i * ratio;
+    const i0 = Math.floor(pos);
+    const t = pos - i0;
+    const a = input[i0];
+    const b = i0 + 1 < input.length ? input[i0 + 1] : a;
+    out[i] = a * (1 - t) + b * t;
+  }
+  return out;
+}
+
 // ---- Mikrofon (16 kHz PCM16) -------------------------------------------
 class Recorder {
   constructor() {
@@ -48,11 +65,14 @@ class Recorder {
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
-    this.ctx = new AudioContext({ sampleRate: 16000 });
+    // Hızı zorlamıyoruz; iOS donanım hızını verir, worklet 16 kHz'e indirir.
+    this.ctx = new AudioContext();
     if (this.ctx.state === 'suspended') await this.ctx.resume();
     await this.ctx.audioWorklet.addModule('./capture-worklet.js');
     const src = this.ctx.createMediaStreamSource(this.stream);
-    this.node = new AudioWorkletNode(this.ctx, 'capture-processor');
+    this.node = new AudioWorkletNode(this.ctx, 'capture-processor', {
+      processorOptions: { targetRate: 16000 },
+    });
     this.node.port.onmessage = (e) => {
       const buf = e.data;
       onChunk(abToBase64(buf), rmsFromInt16(buf));
@@ -75,17 +95,22 @@ class Player {
   constructor() {
     this.ctx = null;
     this.node = null;
+    this.outRate = 24000;
   }
   async start() {
-    this.ctx = new AudioContext({ sampleRate: 24000 });
+    // Hızı zorlamıyoruz (iOS reddedebilir); gelen 24 kHz sesi gerçek
+    // bağlam hızına yeniden örnekliyoruz.
+    this.ctx = new AudioContext();
     if (this.ctx.state === 'suspended') await this.ctx.resume();
+    this.outRate = this.ctx.sampleRate;
     await this.ctx.audioWorklet.addModule('./playback-worklet.js');
     this.node = new AudioWorkletNode(this.ctx, 'playback-processor');
     this.node.connect(this.ctx.destination);
   }
   enqueue(b64) {
     if (!this.node) return;
-    const f32 = base64ToFloat32(b64);
+    let f32 = base64ToFloat32(b64); // 24 kHz
+    if (this.outRate !== 24000) f32 = resampleLinear(f32, 24000, this.outRate);
     this.node.port.postMessage(f32, [f32.buffer]);
   }
   clear() {
@@ -232,12 +257,14 @@ async function start() {
     connecting = true;
     setStatus('connecting', 'Bağlanıyor…');
     micBtn.disabled = true;
+    // iOS: ses bağlamları ağ bağlantısından ÖNCE kurulmalı (dokunma hareketi
+    // kaybolmadan resume edilsin). Mikrofon hazır olunca WS'e bağlanıyoruz.
     await player.start();
-    await connectTranslator();
     await recorder.start((b64, rms) => {
       translator?.sendAudio(b64);
       meterFill.style.width = Math.round(rms * 100) + '%';
     });
+    await connectTranslator();
     running = true;
     micBtn.disabled = false;
     micBtn.classList.add('live');
